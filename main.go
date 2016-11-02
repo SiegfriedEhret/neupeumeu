@@ -10,10 +10,11 @@ import (
 )
 
 type pkg struct {
-	Name        string   `json:"name"`
-	Version     string   `json:"version"`
-	Description string   `json:"description"`
-	Keywords    []string `json:"keywords"`
+	Name         string            `json:"name"`
+	Version      string            `json:"version"`
+	Description  string            `json:"description"`
+	Keywords     []string          `json:"keywords"`
+	Dependencies map[string]string `json:"dependencies"`
 }
 
 const (
