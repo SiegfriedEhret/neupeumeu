@@ -1,26 +1,47 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
+	"fmt"
 	"github.com/Sirupsen/logrus"
 	"io/ioutil"
-	"fmt"
 	"os"
-	"encoding/json"
 )
 
 type pkg struct {
-	Name        string `json:"name"`
-	Version     string `json:"version"`
-	Description string `json:"description"`
+	Name        string   `json:"name"`
+	Version     string   `json:"version"`
+	Description string   `json:"description"`
 	Keywords    []string `json:"keywords"`
 }
 
+const (
+	APP     = "neupeumeu v%s\n"
+	VERSION = "1.0.0"
+)
+
+var (
+	debug bool
+)
+
 func init() {
-	logrus.Debug("Init bargl")
+	flag.BoolVar(&debug, "d", false, "Run in debug mode")
+
+	flag.Usage = func() {
+		fmt.Fprint(os.Stderr, fmt.Sprintf(APP, VERSION))
+		flag.PrintDefaults()
+	}
+
+	flag.Parse()
+
+	if debug {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
 }
 
 func main() {
-	logrus.Debug("bargl")
+	logrus.Debug("neupeumeu")
 	logrus.Info(readPackageDotJson())
 }
 
