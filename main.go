@@ -1,37 +1,24 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	log "github.com/Sirupsen/logrus"
-	"os/user"
-	"io"
-	"net/http"
-	"strings"
+	"gitlab.com/SiegfriedEhret/neupeumeu/pkgdotjson"
+	"gitlab.com/SiegfriedEhret/neupeumeu/registry"
+	"gitlab.com/SiegfriedEhret/neupeumeu/utils"
 )
 
-type pkg struct {
-	Name           string            `json:"name"`
-	Version        string            `json:"version"`
-	Description    string            `json:"description"`
-	Keywords       []string          `json:"keywords"`
-	Dependencies   map[string]string `json:"dependencies"`
-	DevDpendencies map[string]string `json:"devDependencies"`
-}
-
 const (
-	APP      = "neupeumeu v%s\n"
-	VERSION  = "1.0.0"
-	REGISTRY = "https://registry.npmjs.org"
+	APP          = "neupeumeu v%s\n"
+	VERSION      = "1.0.0"
+	NODE_MODULES = "node_modules"
 )
 
 var (
 	debug bool
-	cacheDir string
 )
 
 func init() {
@@ -50,87 +37,41 @@ func init() {
 }
 
 func main() {
-	log.Debug("neupeumeu")
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Fatal("Failed to get current working directory", err.Error())
+	}
 
-	localPkg := readPackageDotJson()
+	log.Debug("Running neupeumeu in " + cwd)
+
+	localPkg := pkgdotjson.ReadPackageDotJson("./package.json")
 	log.Debug(localPkg)
 
-	currentUser, err := user.Current()
-	if err != nil {
-		fmt.Println("Failed to get current user info", err.Error())
-	}
+	utils.InitDirs()
 
-	homeDir := currentUser.HomeDir
-
-	log.Debug(homeDir)
-	err, cacheDir = createNeupeumeuCacheDir(homeDir)
-	if err != nil {
-		log.Error("Error creating directory", cacheDir, err.Error())
-	}
-
-	for dep, version := range localPkg.Dependencies {
-		log.WithFields(log.Fields{
-			"dep": dep,
+	for depName, depVersion := range localPkg.Dependencies {
+		version, prefix := pkgdotjson.GetVersionAndPrefix(depVersion)
+		fields := log.Fields{
+			"name":    depName,
 			"version": version,
-		}).Debug("Installing module...")
-
-		var versionToDownload string
-
-		if strings.HasPrefix(version, "^") || strings.HasPrefix(version, "~"){
-			versionToDownload = version[1:]
+			"prefix":  prefix,
 		}
 
-		download(dep, versionToDownload)
+		log.WithFields(fields).Debug("Installing module...")
+
+		err, depPkgPath, installedVersion := registry.GetPkgFromRegistry(depName, version, prefix)
+		if err != nil {
+			log.WithFields(fields).Errorf("Failed to get depencendy package.json", err.Error())
+		} else {
+			depPkg := pkgdotjson.ReadPackageDotJson(depPkgPath)
+
+			filepath := registry.GetDepFromRegistry(depPkg.Dist.Tarball, depName, installedVersion)
+			err, ok := utils.IsShasumValid(filepath, depPkg.Dist.Shasum)
+			if err != nil || !ok {
+				log.Error("Failed to check package")
+			} else {
+				utils.Extract(depName, installedVersion, filepath, cwd+"/"+NODE_MODULES+"/"+depName)
+			}
+		}
 	}
-}
-
-func createNeupeumeuCacheDir(homeDir string) (error, string) {
-	dir := homeDir + "/.neupeumeu"
-	err := createDir(dir)
-	return err, dir
-}
-
-func createDir(dir string) error {
-	err := os.MkdirAll(dir, 0711)
-	return err
-}
-
-func readPackageDotJson() pkg {
-	raw, err := ioutil.ReadFile("./package.json")
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-
-	var c pkg
-	json.Unmarshal(raw, &c)
-
-	return c
-}
-
-func download(n string, v string) {
-	// http://registry.npmjs.org/beulogue/-/beulogue-4.0.2.tgz
-	from := REGISTRY + "/" + n + "/-/" + n + "-" + v + ".tgz"
-	to := cacheDir + "/" + n;
-
-	err := createDir(to)
-	if err != nil {
-		log.Errorf("Failed to create %s", to, err.Error())
-		return
-	}
-
-	resp, err := http.Get(from)
-	if err != nil {
-		log.Errorf("Failed to get", from, err.Error())
-	}
-	defer resp.Body.Close()
-
-	filepath := to + "/" + v + ".tgz"
-	out, err := os.Create(filepath)
-	if err != nil {
-		log.Errorf("Failed to create %s", filepath, err.Error())
-	}
-	defer out.Close()
-
-	io.Copy(out, resp.Body)
 }

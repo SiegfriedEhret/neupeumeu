@@ -13,10 +13,14 @@ All examples are using [beulogue](https://www.npmjs.com/package/beulogue)
 ## Todo
 
 - [x] List things in cwd package.json
-- [ ] Install deps in package.json
+- [x] Download deps in neupeumeu's cache based on that semver thing
+- [ ] Don't re-download if matching version is already there
+- [x] Install deps in package.json
+- [ ] Install deps of deps of deps... in package.json
 - [ ] Install a named package and update package.json (deps / devDeps)
 - [ ] Cache
-- [ ] Semver
+- [x] Check deps' shasum
+- [x] Semver
 - [ ] Run things
 - [ ] Native modules (node-gyp...)
 
